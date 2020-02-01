@@ -15,24 +15,10 @@ import Foreign.Marshal.Array
 -- types start
 {#enum define SoapySDRDirection {SOAPY_SDR_TX as DirectionTX, SOAPY_SDR_RX as DirectionRX} deriving (Eq,Show) #}
 {#enum define SoapySDRChannel {0 as Channel0} deriving (Eq,Show) #}
--- {#enum define SoapySDRFormat {"CF32" as SOAPY_SDR_CF32, "CS32" as SOAPY_SDR_CS32} deriving (Eq,Show) #} -- Doesn't parse
 
 {#pointer *SoapySDRDevice as SoapySDRDevice#}
 {#pointer *SoapySDRStream as SoapySDRStream#}
 {#pointer *SoapySDRKwargs as SoapySDRKwargs newtype#}
-
-data SoapySDRRange = SoapySDRRange {
-    minimum' :: CDouble,
-    maximum' :: CDouble,
-    step :: CDouble
-} deriving Show
-instance Storable SoapySDRRange where
-  sizeOf _ = 24 
-  alignment _ = 8
-  peek ptr = do
-      return (SoapySDRRange 0.0 0.0 0.0)
-  poke ptr inp = do
-        {#set SoapySDRRange.minimum #} ptr 1.0
 
 -- types end
 
@@ -53,6 +39,9 @@ instance Storable SoapySDRRange where
 
 foreign import ccall unsafe "SoapySDRDevice_readStream"
     readStream :: SoapySDRDevice -> SoapySDRStream -> Ptr (Ptr CFloat) -> CInt -> Ptr CInt -> Ptr CLLong -> CLong -> IO (CInt)
+
+foreign import ccall unsafe "SoapySDRDevice_writeStream"
+    writeStream :: SoapySDRDevice -> SoapySDRStream -> Ptr (Ptr CFloat) -> CULong -> Ptr CInt -> CLLong -> CLong -> IO (CInt)
 
 {#fun unsafe SoapySDRDevice_lastError as ^
    {} -> `CString' #}
@@ -97,6 +86,5 @@ soapySDRDeviceGetStreamFormats dev dir chan = do
     y <-soapySDRDeviceGetStreamFormats' dev dir chan
     let len = fromIntegral (snd y)
     strPtrs <- peekArray len (fst y)
-    let strs = mapM peekCString strPtrs
-    strs
+    mapM peekCString strPtrs
     

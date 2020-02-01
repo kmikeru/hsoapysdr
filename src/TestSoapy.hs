@@ -23,28 +23,19 @@ import GHC.Float
 import GHC.Word
 import Data.Coerce (coerce)
 
--- sdrStream :: DeviceWithStream -> Producer [CFloat] IO ()
 sdrStream dev = do
     (output, input) <- spawn unbounded
     v <- consumeStream dev
     atomically (send output v)
 
-handler :: Consumer [CFloat] IO ()
-handler = forever $ do
-  event <- await
-  lift $ putStrLn (show event)
-  return ()
-
-test = do
+receiveTest = do
     dev <- soapySDRDeviceMakeStrArgs("driver=rtlsdr")
     r1 <- soapySDRDeviceSetSampleRate dev DirectionRX Channel0 0.1e6
     print r1
     sr <- soapySDRDeviceGetSampleRate dev DirectionRX Channel0
     print ("samplerate:" ++ show(sr))
     a<-soapySDRDeviceSetGain dev DirectionRX Channel0 60.0
-    -- let freq = 105.6e6
     let freq = 433.9e6
-    -- let freq = 1295.6e6 -- quiet
     r2 <-soapySDRDeviceSetFrequency dev DirectionRX Channel0 freq (SoapySDRKwargs nullPtr)
     print r2
     z1 <- soapySDRDeviceSetupStream dev DirectionRX "CF32"  0 0 (SoapySDRKwargs nullPtr)
@@ -55,16 +46,11 @@ test = do
     array <- allocaArray (num_samples * 2) $ \buf -> do
         flags <- malloc :: IO (Ptr CInt)
         timeNs <- malloc :: IO (Ptr CLLong)
-        fh <- openBinaryFile "test.wav" WriteMode
-        -- bufptr <- malloc :: IO (Ptr (Ptr CFloat))
+        fh <- openBinaryFile "test.wav" WriteMode        
         forever $ do
             with buf $ \bufptr -> do
                 elementsRead <- readStream dev stream bufptr (fromIntegral num_samples :: CInt) flags timeNs 1000000
                 print elementsRead
-                -- a <- peekArray (num_samples * 2) buf            
-                -- let m1 = minimum a
-                -- let m2 = maximum a
-                -- print (show m1 ++ " " ++ show m2)
                 hPutBuf fh buf (num_samples * 2 * 4)
     print "done"
 
@@ -79,9 +65,6 @@ setupStream = do
     print ("samplerate:" ++ show(sr))
     a<-soapySDRDeviceSetGain dev DirectionRX Channel0 35.0
     let freq = 105.6e6
-    -- let freq = 100.8e6
-    -- let freq = 1295.6e6 -- quiet
-    -- let freq = 433.9e6
     r2 <-soapySDRDeviceSetFrequency dev DirectionRX Channel0 freq (SoapySDRKwargs nullPtr)
     print r2
     z1 <- soapySDRDeviceSetupStream dev DirectionRX "CF32"  0 0 (SoapySDRKwargs nullPtr)
@@ -96,7 +79,7 @@ consumeStream (DeviceWithStream dev stream) = do
     let num_samples = 1024
     allocaArray (num_samples * 2) $ \buf -> do
         flags <- malloc :: IO (Ptr CInt)
-        timeNs <- malloc :: IO (Ptr CLLong)        
+        timeNs <- malloc :: IO (Ptr CLLong)
         with buf $ \bufptr -> do
             elementsRead <- readStream dev stream bufptr (fromIntegral num_samples :: CInt) flags timeNs 1000000
             free flags
@@ -128,7 +111,6 @@ fft samples = do
     outA <- fftwAllocComplex (fromIntegral n)
     plan <- planDFT1d n inA outA Forward fftwEstimate
 
-    -- pokeArray inA $ map (:+ 0) [0..1023]
     pokeArray inA samples
     execute plan
     res <- peekArray n outA
@@ -136,3 +118,26 @@ fft samples = do
     fftwFree inA -- this seems to not work and results in leak
     fftwFree outA -- this seems to not work and results in leak
     return(res)
+
+transmitTest = do
+    dev <- soapySDRDeviceMakeStrArgs("driver=hackrf")
+    r1 <- soapySDRDeviceSetSampleRate dev DirectionTX Channel0 0.1e6
+    print r1
+    sr <- soapySDRDeviceGetSampleRate dev DirectionTX Channel0
+    print ("samplerate:" ++ show(sr))
+    let freq = 433.9e6
+    r2 <-soapySDRDeviceSetFrequency dev DirectionTX Channel0 freq (SoapySDRKwargs nullPtr)
+    print r2
+    z1 <- soapySDRDeviceSetupStream dev DirectionTX "CF32"  0 0 (SoapySDRKwargs nullPtr)
+    let stream = snd z1
+    r3 <- soapySDRDeviceActivateStream dev stream 0 0 0
+    print r3
+    let num_samples = 131072
+    array <- allocaArray (num_samples * 2) $ \buf -> do
+        flags <- malloc :: IO (Ptr CInt)
+        pokeArray buf [0..10000] -- just some noise
+        forever $ do
+            with buf $ \bufptr -> do
+                elementsW <- writeStream dev stream bufptr (fromIntegral num_samples :: CULong) flags 0 1000000
+                print elementsW
+    print "done"
