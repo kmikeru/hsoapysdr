@@ -9,4 +9,7 @@ A chunk of the 433 MHz ISM spectrum. Captured with an RTLSDR device and drawn as
 ![Screenshot](https://github.com/kmikeru/hsoapysdr/blob/master/8f9db17a-837a-4875-aa89-e03117382e20.jpeg?raw=true)
 
 Only tested on Debian x86-64 with bundled GHC 8.6.5.
+
+PRs are welcome.
+
 I still have no idea what I'm doing. (c)
