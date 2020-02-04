@@ -59,12 +59,12 @@ data DeviceWithStream = DeviceWithStream SoapySDRDevice SoapySDRStream
 setupStream :: IO (DeviceWithStream)
 setupStream = do
     dev <- soapySDRDeviceMakeStrArgs("driver=rtlsdr")
-    r1 <- soapySDRDeviceSetSampleRate dev DirectionRX Channel0 2.0e6
+    r1 <- soapySDRDeviceSetSampleRate dev DirectionRX Channel0 1280000
     print r1
     sr <- soapySDRDeviceGetSampleRate dev DirectionRX Channel0
     print ("samplerate:" ++ show(sr))
     a<-soapySDRDeviceSetGain dev DirectionRX Channel0 35.0
-    let freq = 105.6e6
+    let freq = 105.7e6
     r2 <-soapySDRDeviceSetFrequency dev DirectionRX Channel0 freq (SoapySDRKwargs nullPtr)
     print r2
     z1 <- soapySDRDeviceSetupStream dev DirectionRX "CF32"  0 0 (SoapySDRKwargs nullPtr)
@@ -91,6 +91,10 @@ toComplex floats =
     map (\i -> CDouble (i!!0) :+ CDouble (i!!1)) (chunksOf 2 doubles)
     where doubles = map (\i -> float2Double (coerce i)) floats
 
+toComplexf :: [CFloat] -> [Complex Float]
+toComplexf cfloats =
+    map (\i -> (i!!0) :+ (i!!1)) (chunksOf 2 floats)
+    where floats = map coerce cfloats
 
 fftsetup = do
     inA  <- fftwAllocComplex 1024
