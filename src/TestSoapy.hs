@@ -145,3 +145,17 @@ transmitTest = do
                 elementsW <- writeStream dev stream bufptr (fromIntegral num_samples :: CULong) flags 0 1000000
                 print elementsW
     print "done"
+
+queryDevice = do
+    dev <- soapySDRDeviceMakeStrArgs("driver=rtlsdr")
+    formats <- soapySDRDeviceGetStreamFormats dev DirectionRX Channel0
+    putStrLn ("stream formats:" ++ show(formats))
+    native <- soapySDRDeviceGetNativeStreamFormat dev DirectionRX Channel0
+    putStrLn ("native stream format:" ++ show(native))
+    devStream <- soapySDRDeviceSetupStream dev DirectionRX "CF32"  0 0 (SoapySDRKwargs nullPtr)
+    mtu <- soapySDRDeviceGetStreamMTU dev (snd devStream)
+    putStrLn ("stream MTU:" ++ show(mtu))
+    closeResult <- soapySDRDeviceCloseStream dev (snd devStream)
+    putStrLn ("close result:" ++ show(closeResult))
+    unmakeResult <- soapySDRDeviceUnmake dev
+    putStrLn ("unmake result:" ++ show(unmakeResult))
