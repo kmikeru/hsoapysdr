@@ -17,6 +17,7 @@ import Pipes.Concurrent
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever, replicateM_)
 import Data.Complex
+import Data.List
 import Data.List.Split
 import Numeric.FFTW
 import GHC.Float
@@ -136,10 +137,14 @@ transmitTest = do
     let stream = snd z1
     r3 <- soapySDRDeviceActivateStream dev stream 0 0 0
     print r3
+    let t = [0..131072.0]
+    let i = map (\i -> CFloat(sin(i/10000))) t
+    let q = map (\i -> CFloat(cos(i/10000))) t
+    let iq = concat (transpose [i, q])
     let num_samples = 131072
     array <- allocaArray (num_samples * 2) $ \buf -> do
         flags <- malloc :: IO (Ptr CInt)
-        pokeArray buf [0..10000] -- just some noise
+        pokeArray buf iq
         forever $ do
             with buf $ \bufptr -> do
                 elementsW <- writeStream dev stream bufptr (fromIntegral num_samples :: CULong) flags 0 1000000
