@@ -60,7 +60,7 @@ library
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.12 && <4.13, pipes, pipes-concurrency, split, fftwRaw
+  build-depends:       base >=4.12 && <4.13, pipes, pipes-concurrency, split, fftwRaw, random
 
   -- Directories containing source files.
   hs-source-dirs:      src
@@ -104,7 +104,7 @@ executable WFM
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.12 && <4.13, pipes, pipes-concurrency, split, fftwRaw, transformers, errors, sdr, vector
+  build-depends:       base >=4.12 && <4.13, pipes, pipes-concurrency, split, fftwRaw, transformers, errors, sdr, vector, random
 
 
   -- Directories containing source files.

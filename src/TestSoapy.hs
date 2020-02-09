@@ -4,6 +4,8 @@ module TestSoapy where
 
 import Soapy
 import System.IO
+import System.Random
+import System.Posix.Signals (Handler, Handler(CatchOnce), Handler(Catch), installHandler, sigINT, sigTERM)
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr
@@ -15,7 +17,7 @@ import Foreign.Marshal.Utils
 import Pipes
 import Pipes.Concurrent
 import Control.Concurrent (threadDelay)
-import Control.Monad (forever, replicateM_)
+import Control.Monad (forever, replicateM_, replicateM)
 import Data.Complex
 import Data.List
 import Data.List.Split
@@ -31,12 +33,12 @@ sdrStream dev = do
 
 receiveTest = do
     dev <- soapySDRDeviceMakeStrArgs("driver=rtlsdr")
-    r1 <- soapySDRDeviceSetSampleRate dev DirectionRX Channel0 0.1e6
+    r1 <- soapySDRDeviceSetSampleRate dev DirectionRX Channel0 2.0e6
     print r1
     sr <- soapySDRDeviceGetSampleRate dev DirectionRX Channel0
     print ("samplerate:" ++ show(sr))
     a<-soapySDRDeviceSetGain dev DirectionRX Channel0 60.0
-    let freq = 433.9e6
+    let freq = 103.2e6
     r2 <-soapySDRDeviceSetFrequency dev DirectionRX Channel0 freq (SoapySDRKwargs nullPtr)
     print r2
     z1 <- soapySDRDeviceSetupStream dev DirectionRX "CF32"  0 0 (SoapySDRKwargs nullPtr)
@@ -47,7 +49,7 @@ receiveTest = do
     array <- allocaArray (num_samples * 2) $ \buf -> do
         flags <- malloc :: IO (Ptr CInt)
         timeNs <- malloc :: IO (Ptr CLLong)
-        fh <- openBinaryFile "test.wav" WriteMode        
+        fh <- openBinaryFile "test.wav" WriteMode
         forever $ do
             with buf $ \bufptr -> do
                 elementsRead <- readStream dev stream bufptr (fromIntegral num_samples :: CInt) flags timeNs 1000000
@@ -124,9 +126,9 @@ fft samples = do
     fftwFree outA -- this seems to not work and results in leak
     return(res)
 
-transmitTest = do
+transmitToneTest = do
     dev <- soapySDRDeviceMakeStrArgs("driver=hackrf")
-    r1 <- soapySDRDeviceSetSampleRate dev DirectionTX Channel0 0.1e6
+    r1 <- soapySDRDeviceSetSampleRate dev DirectionTX Channel0 4.0e6
     print r1
     sr <- soapySDRDeviceGetSampleRate dev DirectionTX Channel0
     print ("samplerate:" ++ show(sr))
@@ -137,22 +139,25 @@ transmitTest = do
     let stream = snd z1
     r3 <- soapySDRDeviceActivateStream dev stream 0 0 0
     print r3
-    let t = [0..131072.0]
-    let i = map (\i -> CFloat(sin(i/10000))) t
-    let q = map (\i -> CFloat(cos(i/10000))) t
-    let iq = concat (transpose [i, q])
     let num_samples = 131072
-    array <- allocaArray (num_samples * 2) $ \buf -> do
+    let t = [0.0..(fromIntegral num_samples)]
+    let f = map (\i -> sin(i/5000)) t
+    let i = zipWith (\i j -> CFloat(sin(i/50+j))) t f
+    let q = zipWith (\i j -> CFloat(cos(i/50-j))) t f
+    let iq = concat (transpose [i, q])
+    array <- allocaBytes (num_samples * 8) $ \buf -> do
         flags <- malloc :: IO (Ptr CInt)
-        pokeArray buf iq
-        forever $ do
-            with buf $ \bufptr -> do
+        with buf $ \bufptr -> do
+            pokeArray buf iq
+            -- fh <- openBinaryFile "test2.wav" WriteMode
+            -- hPutBuf fh buf (num_samples * 8)
+            forever $ do
                 elementsW <- writeStream dev stream bufptr (fromIntegral num_samples :: CULong) flags 0 1000000
                 print elementsW
     print "done"
 
 queryDevice = do
-    dev <- soapySDRDeviceMakeStrArgs("driver=rtlsdr")
+    dev <- soapySDRDeviceMakeStrArgs("driver=hackrf")
     formats <- soapySDRDeviceGetStreamFormats dev DirectionRX Channel0
     putStrLn ("stream formats:" ++ show(formats))
     native <- soapySDRDeviceGetNativeStreamFormat dev DirectionRX Channel0
@@ -164,3 +169,46 @@ queryDevice = do
     putStrLn ("close result:" ++ show(closeResult))
     unmakeResult <- soapySDRDeviceUnmake dev
     putStrLn ("unmake result:" ++ show(unmakeResult))
+
+handler dev stream = do
+    _ <- soapySDRDeviceDeactivateStream dev stream 0 0
+    _ <- soapySDRDeviceCloseStream dev stream
+    unmakeResult <- soapySDRDeviceUnmake dev
+    putStrLn ("unmake result:" ++ show(unmakeResult))
+
+transmitFileTest = do
+    dev <- soapySDRDeviceMakeStrArgs("driver=hackrf")
+    -- from hackrf_transfer help : # Sample rate in Hz (4/8/10/12.5/16/20MHz, default 10MHz)
+    -- with smaller sample rates like 100k or 300k HackRF seems to transmit just a carrier
+    r1 <- soapySDRDeviceSetSampleRate dev DirectionTX Channel0 4.0e6
+    print r1
+    sr <- soapySDRDeviceGetSampleRate dev DirectionTX Channel0
+    print ("samplerate:" ++ show(sr))
+    let freq = 433.9e6
+    r2 <-soapySDRDeviceSetFrequency dev DirectionTX Channel0 freq (SoapySDRKwargs nullPtr)
+    print r2
+    z1 <- soapySDRDeviceSetupStream dev DirectionTX "CF32"  0 0 (SoapySDRKwargs nullPtr)
+    let stream = snd z1
+    r3 <- soapySDRDeviceActivateStream dev stream 0 0 0
+    print r3
+
+    installHandler sigINT (Catch (handler dev stream)) Nothing
+    installHandler sigTERM (Catch (handler dev stream)) Nothing
+
+    let num_samples = 131072
+    fh <- openBinaryFile "test4.wav" ReadMode
+    array <- allocaBytes (num_samples * 8) $ \buf -> do
+        flags <- malloc :: IO (Ptr CInt)
+        with buf $ \bufptr -> do
+            forever $ do
+                hGetBuf fh buf (num_samples * 8)
+                elementsW <- writeStream dev stream bufptr (fromIntegral num_samples :: CULong) flags 0 1000000
+                print elementsW
+                isEof <- hIsEOF fh
+                if (isEof)
+                    then do
+                        putStrLn "end of file reached, repeating"
+                        hSeek fh AbsoluteSeek 0
+                    else
+                        hSeek fh RelativeSeek (fromIntegral num_samples*8)
+    print "done"
