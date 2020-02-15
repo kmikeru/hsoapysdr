@@ -32,11 +32,11 @@ sdrStream dev = do
     atomically (send output v)
 
 receiveTest = do
-    dev <- soapySDRDeviceMakeStrArgs("driver=rtlsdr")
+    dev <- soapySDRDeviceMakeStrArgs "driver=rtlsdr"
     r1 <- soapySDRDeviceSetSampleRate dev DirectionRX Channel0 2.0e6
     print r1
     sr <- soapySDRDeviceGetSampleRate dev DirectionRX Channel0
-    print ("samplerate:" ++ show(sr))
+    print ("samplerate:" ++ show sr)
     a<-soapySDRDeviceSetGain dev DirectionRX Channel0 60.0
     let freq = 103.2e6
     r2 <-soapySDRDeviceSetFrequency dev DirectionRX Channel0 freq (SoapySDRKwargs nullPtr)
@@ -50,7 +50,7 @@ receiveTest = do
         flags <- malloc :: IO (Ptr CInt)
         timeNs <- malloc :: IO (Ptr CLLong)
         fh <- openBinaryFile "test.wav" WriteMode
-        forever $ do
+        forever $
             with buf $ \bufptr -> do
                 elementsRead <- readStream dev stream bufptr (fromIntegral num_samples :: CInt) flags timeNs 1000000
                 print elementsRead
@@ -59,13 +59,13 @@ receiveTest = do
 
 data DeviceWithStream = DeviceWithStream SoapySDRDevice SoapySDRStream
 
-setupStream :: IO (DeviceWithStream)
+setupStream :: IO DeviceWithStream
 setupStream = do
-    dev <- soapySDRDeviceMakeStrArgs("driver=rtlsdr")
-    r1 <- soapySDRDeviceSetSampleRate dev DirectionRX Channel0 1280000
+    dev <- soapySDRDeviceMakeStrArgs "driver=rtlsdr"
+    r1 <- soapySDRDeviceSetSampleRate dev DirectionRX Channel0 1.28e6
     print r1
     sr <- soapySDRDeviceGetSampleRate dev DirectionRX Channel0
-    print ("samplerate:" ++ show(sr))
+    print ("samplerate:" ++ show sr)
     a<-soapySDRDeviceSetGain dev DirectionRX Channel0 35.0
     let freq = 105.7e6
     r2 <-soapySDRDeviceSetFrequency dev DirectionRX Channel0 freq (SoapySDRKwargs nullPtr)
@@ -87,12 +87,12 @@ consumeStream (DeviceWithStream dev stream) = do
             elementsRead <- readStream dev stream bufptr (fromIntegral num_samples :: CInt) flags timeNs 1000000
             free flags
             free timeNs
-            peekArray (minimum(elementsRead, (num_samples * 2))) buf
+            peekArray (minimum(elementsRead, num_samples * 2)) buf
 
 toComplex :: [CFloat] -> [Complex CDouble]
 toComplex floats =
     map (\i -> CDouble (i!!0) :+ CDouble (i!!1)) (chunksOf 2 doubles)
-    where doubles = map (\i -> float2Double (coerce i)) floats
+    where doubles = map (float2Double . coerce) floats
 
 toComplexf :: [CFloat] -> [Complex Float]
 toComplexf cfloats =
@@ -108,12 +108,11 @@ fftsetup = do
 presetfft inA outA plan samples = do
     pokeArray inA samples
     execute plan
-    res <- peekArray 1024 outA
-    return res
+    peekArray 1024 outA
 
 fft :: [Complex CDouble] -> IO [Complex CDouble]
 fft samples = do
-    let n = length(samples)
+    let n = length samples
     inA  <- fftwAllocComplex (fromIntegral n)
     outA <- fftwAllocComplex (fromIntegral n)
     plan <- planDFT1d n inA outA Forward fftwEstimate
@@ -124,14 +123,14 @@ fft samples = do
 
     fftwFree inA -- this seems to not work and results in leak
     fftwFree outA -- this seems to not work and results in leak
-    return(res)
+    return res
 
 transmitToneTest = do
-    dev <- soapySDRDeviceMakeStrArgs("driver=hackrf")
+    dev <- soapySDRDeviceMakeStrArgs "driver=hackrf"
     r1 <- soapySDRDeviceSetSampleRate dev DirectionTX Channel0 4.0e6
     print r1
     sr <- soapySDRDeviceGetSampleRate dev DirectionTX Channel0
-    print ("samplerate:" ++ show(sr))
+    print ("samplerate:" ++ show sr)
     let freq = 433.9e6
     r2 <-soapySDRDeviceSetFrequency dev DirectionTX Channel0 freq (SoapySDRKwargs nullPtr)
     print r2
@@ -157,33 +156,33 @@ transmitToneTest = do
     print "done"
 
 queryDevice = do
-    dev <- soapySDRDeviceMakeStrArgs("driver=hackrf")
+    dev <- soapySDRDeviceMakeStrArgs "driver=hackrf"
     formats <- soapySDRDeviceGetStreamFormats dev DirectionRX Channel0
-    putStrLn ("stream formats:" ++ show(formats))
+    putStrLn ("stream formats:" ++ show formats)
     native <- soapySDRDeviceGetNativeStreamFormat dev DirectionRX Channel0
-    putStrLn ("native stream format:" ++ show(native))
+    putStrLn ("native stream format:" ++ show native)
     devStream <- soapySDRDeviceSetupStream dev DirectionRX "CF32"  0 0 (SoapySDRKwargs nullPtr)
     mtu <- soapySDRDeviceGetStreamMTU dev (snd devStream)
-    putStrLn ("stream MTU:" ++ show(mtu))
+    putStrLn ("stream MTU:" ++ show mtu)
     closeResult <- soapySDRDeviceCloseStream dev (snd devStream)
-    putStrLn ("close result:" ++ show(closeResult))
+    putStrLn ("close result:" ++ show closeResult)
     unmakeResult <- soapySDRDeviceUnmake dev
-    putStrLn ("unmake result:" ++ show(unmakeResult))
+    putStrLn ("unmake result:" ++ show unmakeResult)
 
 handler dev stream = do
     _ <- soapySDRDeviceDeactivateStream dev stream 0 0
     _ <- soapySDRDeviceCloseStream dev stream
     unmakeResult <- soapySDRDeviceUnmake dev
-    putStrLn ("unmake result:" ++ show(unmakeResult))
+    putStrLn ("unmake result:" ++ show unmakeResult)
 
 transmitFileTest = do
-    dev <- soapySDRDeviceMakeStrArgs("driver=hackrf")
+    dev <- soapySDRDeviceMakeStrArgs "driver=hackrf"
     -- from hackrf_transfer help : # Sample rate in Hz (4/8/10/12.5/16/20MHz, default 10MHz)
     -- with smaller sample rates like 100k or 300k HackRF seems to transmit just a carrier
     r1 <- soapySDRDeviceSetSampleRate dev DirectionTX Channel0 4.0e6
     print r1
     sr <- soapySDRDeviceGetSampleRate dev DirectionTX Channel0
-    print ("samplerate:" ++ show(sr))
+    print ("samplerate:" ++ show sr)
     let freq = 433.9e6
     r2 <-soapySDRDeviceSetFrequency dev DirectionTX Channel0 freq (SoapySDRKwargs nullPtr)
     print r2
@@ -199,13 +198,13 @@ transmitFileTest = do
     fh <- openBinaryFile "test4.wav" ReadMode
     array <- allocaBytes (num_samples * 8) $ \buf -> do
         flags <- malloc :: IO (Ptr CInt)
-        with buf $ \bufptr -> do
+        with buf $ \bufptr ->
             forever $ do
                 hGetBuf fh buf (num_samples * 8)
                 elementsW <- writeStream dev stream bufptr (fromIntegral num_samples :: CULong) flags 0 1000000
                 print elementsW
                 isEof <- hIsEOF fh
-                if (isEof)
+                if isEof
                     then do
                         putStrLn "end of file reached, repeating"
                         hSeek fh AbsoluteSeek 0

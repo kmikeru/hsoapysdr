@@ -17,13 +17,13 @@ import System.Mem (performGC)
 fftpipe :: Producer [GLfloat] IO ()
 fftpipe = do
     dev <- lift setupStream
-    (inA, outA, plan) <- lift $ fftsetup
+    (inA, outA, plan) <- lift fftsetup
     forever $ do
         samples <- lift (consumeStream dev)
         let compl = toComplex samples
         ffts <- lift (presetfft inA outA plan compl)
         let reals = map (realToFrac . magnitude) ffts
-        lift $ performGC
+        lift performGC
         Pipes.yield reals
 
 main = exceptT putStrLn return $ do
