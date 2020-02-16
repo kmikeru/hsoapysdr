@@ -1,0 +1,5 @@
+*.wav
+dist/
+dist-newstyle/
+src/Soapy.ch*
+src/Soapy.hs

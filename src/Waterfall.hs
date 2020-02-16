@@ -5,13 +5,12 @@ import Control.Concurrent
 import Pipes
 import qualified Pipes.Prelude as P
 import System.Random
-import Graphics.Rendering.OpenGL
 import Data.Complex
 import Foreign.C.Types
 import Graphics.DynamicGraph.Waterfall
 import Graphics.DynamicGraph.Window
-import TestSoapy
-import Data.Coerce (coerce)
+import Graphics.Rendering.OpenGL
+import SoapySDRUtils
 import System.Mem (performGC)
 
 fftpipe :: Producer [GLfloat] IO ()
